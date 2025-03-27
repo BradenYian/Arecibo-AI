@@ -7,8 +7,10 @@ const chatContainer = document.getElementById('chatContainer');
 let selectedModel = '';
 let recognition = null;
 let isListening = false;
+const sessionId = Date.now().toString(); // Simulate a user session
+let isInitialInteraction = true;
 
-// Initialize speech recognition
+// ✅ Initialize speech recognition
 function initSpeechRecognition() {
     if (!('webkitSpeechRecognition' in window)) {
         micButton.style.display = 'none';
@@ -18,7 +20,7 @@ function initSpeechRecognition() {
 
     recognition = new webkitSpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = true;
+    recognition.interimResults = false; // ✅ Final result only
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
@@ -39,7 +41,7 @@ function initSpeechRecognition() {
     };
 
     recognition.onresult = (event) => {
-        let transcript = event.results[0][0].transcript;
+        const transcript = event.results[0][0].transcript;
         messageInput.value = transcript;
     };
 
@@ -50,7 +52,7 @@ function initSpeechRecognition() {
     };
 }
 
-// Fetch available models
+// ✅ Fetch available models
 async function fetchModels() {
     try {
         const response = await fetch('/api/models');
@@ -64,14 +66,17 @@ async function fetchModels() {
             modelSelect.appendChild(option);
         });
 
-        modelSelect.value = "Ollama AI";
-        selectedModel = "Ollama AI";
+        modelSelect.value = "AreciboAI";
+        selectedModel = "AreciboAI";
+
+        // ✅ Start the AI-led conversation
+        await startConversation();
     } catch (error) {
         console.error('Error fetching models:', error);
     }
 }
 
-// Add message to chat
+// ✅ Add message to chat window
 function addMessage(message, isUser = false) {
     const msgDiv = document.createElement('div');
     msgDiv.classList.add('message');
@@ -81,7 +86,29 @@ function addMessage(message, isUser = false) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// Send message to backend
+// ✅ AI initiates conversation with an opening prompt
+async function startConversation() {
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: selectedModel,
+                message: "",
+                isInitial: true,
+                sessionId
+            }),
+        });
+
+        const data = await response.json();
+        addMessage(`AreciboAI: ${data.response}`);
+    } catch (error) {
+        addMessage("Error: Couldn't start the conversation.");
+        console.error(error);
+    }
+}
+
+// ✅ Send message to backend
 async function sendMessage() {
     const message = messageInput.value.trim();
     if (!message || !selectedModel) return;
@@ -93,21 +120,28 @@ async function sendMessage() {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: selectedModel, message: message }),
+            body: JSON.stringify({
+                model: selectedModel,
+                message: message,
+                isInitial: false,
+                sessionId
+            }),
         });
 
         const data = await response.json();
-        addMessage(`AI: ${data.response}`);
+        addMessage(`AreciboAI: ${data.response}`);
+        isInitialInteraction = false;
     } catch (error) {
         addMessage('Error: Failed to send message');
+        console.error(error);
     }
 }
 
+// ✅ Set up UI event listeners
 fetchModels();
-sendButton.addEventListener('click', sendMessage);
 initSpeechRecognition();
+sendButton.addEventListener('click', sendMessage);
 
-// Microphone button event listener
 micButton.addEventListener('click', () => {
     if (!recognition) return;
     if (isListening) {
@@ -115,4 +149,8 @@ micButton.addEventListener('click', () => {
     } else {
         recognition.start();
     }
+});
+
+modelSelect.addEventListener('change', (e) => {
+    selectedModel = e.target.value;
 });
